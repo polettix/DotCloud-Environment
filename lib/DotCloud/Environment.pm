@@ -251,8 +251,8 @@ dotCloud is (anyway, see L<http://www.dotcloud.com/>).
 
 In general you will have multiple services in your application, and when
 you are in one instance inside dotCloud you can access the configuration
-of the relevant ones reading either L</home/dotcloud/environment.yml>
-or L</home/dotcloud/environment.json>. For example, this lets your
+of the relevant ones reading either F</home/dotcloud/environment.yml>
+or F</home/dotcloud/environment.json>. For example, this lets your
 frontend or backend applications know where the data services are, e.g.
 a Redis database or a MySQL one.
 
@@ -276,7 +276,7 @@ development environment.
 With respect to the second goal, it should be observed that
 most of the times in your development environment you don't have the
 same exact situation as in dotCloud, e.g. it's improbable that you have
-a L</home/dotcloud> directory around. With this module you can set a
+a F</home/dotcloud> directory around. With this module you can set a
 fallback to be used in different ways, e.g.:
 
 =over

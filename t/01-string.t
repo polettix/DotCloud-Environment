@@ -12,6 +12,7 @@ use Test::Exception;
 use Data::Dumper;
 
 use DotCloud::Environment;
+$DotCloud::Environment::main_file_path = '';
 
 my $env;
 lives_ok {

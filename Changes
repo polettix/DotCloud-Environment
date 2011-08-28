@@ -1,4 +1,6 @@
 {{$NEXT}}
+   - prevented /home/dotcloud/environment.json to be seen
+     by some tests in order to avoid failure in dotCloud
 
 0.7.0_01  2011-08-29 00:06:55 Europe/Rome
    - initial distro
