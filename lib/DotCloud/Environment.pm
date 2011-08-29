@@ -9,12 +9,14 @@ use English qw( -no_match_vars );
 use Storable qw< dclone >;
 
 our $main_file_path = '/home/dotcloud/environment.json';
+our $main_dotcloud_code_dir = '/home/dotcloud/code';
 my @application_keys = qw< environment project service_id service_name >;
 
 sub new {
    my $package = shift;
    my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
    my $self = bless { _params => \%params, _envfor => {} }, $package;
+   $self->{backtrack} = $params{backtrack} if exists $params{backtrack};
    $self->load() unless $params{no_load};
    return $self;
 }
@@ -146,7 +148,65 @@ sub _get_environment {
       if exists $self->{_params}{fallback_string};
    return _slurp($self->{_params}{fallback_file})
       if exists $self->{_params}{fallback_file};
+
+   return unless $self->{backtrack};
+
+   # We will backtrack from three starting points:
+   # * the "root" directory for the application, i.e
+   #   what in dotCloud is /home/dotcloud/code
+   # * the current working directory
+   # * the directory containing the file that called us
+   my $code_dir = find_code_dir(n => 1);
+
+   require Cwd;
+   require File::Basename;
+   require File::Spec;
+   for my $path ($code_dir, Cwd::cwd(), File::Basename::dirname((caller())[1])) {
+      my ($volume, $directories) = File::Spec->splitpath($path, 'no-file');
+      my @directories = File::Spec->splitdir($directories);
+      while (@directories) {
+         my $directories = File::Spec->catdir(@directories);
+         for my $format (qw< json yaml >) {
+            my $path = File::Spec->catpath($volume, $directories, "environment.$format");
+            return _slurp($path) if -e $path;
+         }
+         pop @directories;
+      }
+   }
+
    return;
+}
+
+sub _find_code_dir {
+   return $main_dotcloud_code_dir if -d $main_dotcloud_code_dir;
+
+   my $n = shift || 0;
+   require Cwd;
+   require File::Basename;
+   require File::Spec;
+   for my $path (Cwd::cwd(), File::Basename::dirname((caller($n))[1])) {
+      my $abspath = File::Spec->file_name_is_absolute($path) ? $path : File::Spec->rel2abs($path);
+      my ($volume, $directories) = File::Spec->splitpath($abspath, 'no-file');
+      my @directories = File::Spec->splitdir($directories);
+      while (@directories) {
+         my $directories = File::Spec->catdir(@directories);
+         my $filepath = File::Spec->catpath($volume, $directories, 'dotcloud.yml');
+         return File::Spec->catpath($volume, $directories, '') if -e $filepath;
+         pop @directories;
+      }
+   }
+}
+
+sub find_code_dir {
+   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
+   my $dir = _find_code_dir($params{n});
+   if (defined($dir) && $params{unix}) {
+      require File::Spec;
+      my $reldir = File::Spec->abs2rel($dir);
+      my @dirs = File::Spec->splitdir($reldir);
+      $dir = join '/', @dirs;
+   }
+   return $dir;
 }
 
 sub _dclone {
@@ -211,6 +271,19 @@ sub service {
       if @found_services > 1;
 
    _dclone_return(@found_services);
+}
+
+sub service_vars {
+   my $self = shift;
+   my %params = (@_ > 0 && ref($_[0])) ? %{$_[0]} : @_;
+   my $service = $self->service(@_);
+   if (exists $params{list}) {
+      my @list = @{$params{list}};
+      my @values = @{$service->{vars}}{@list};
+      return @values if wantarray;
+      return \@values;
+   }
+   _dclone_return($service->{vars});
 }
 
 1;
@@ -582,3 +655,72 @@ applications.
 
 If exactly one service is found it is returned, otherwise this method
 C<croak>s.
+
+=method service_vars
+
+   my %vars   = $dcenv->service_vars(%params); # also \%params
+   my $vars   = $dcenv->service_vars(%params); # also \%params
+   my @values = $dcenv->service_vars(%params); # also \%params
+   my $values = $dcenv->service_vars(%params); # also \%params
+
+this method is a shorthand to get the configuration variables of a single
+service. Depending on the input, the return value might be structured like
+a hash or like an array:
+
+=over
+
+=item B<< service >>
+
+the name of the service, see L</service>
+
+=item B<< application >>
+
+the name of the application, see L</service>
+
+=item B<< list >>
+
+(B<Optional>) if a list is provided, then the values corresponding to each
+item in order is returned. This allows writing things like this:
+
+   my ($host, $port, $password) = $dcenv->service_list(
+      service => 'nosqldb',
+      list => [ qw< host port password > ],
+   );
+
+and get directly the values to put into variables. In this case, the return
+value can be a list of values or an anonymous array with the values.
+
+If this parameter is not present, the whole name/value hash is returned, either
+as a list or as an anonymous hash depending on the context.
+
+=back
+
+=method find_code_dir
+
+   my $code_directory = $dcenv->find_code_dir(%params);
+   my $code_directory = DotCloud::Environment->find_code_dir(%params);
+   my $code_directory = DotCloud::Environment::find_code_dir(%params);
+
+not really a method, this function tries to find the file F<dotcloud.yml> that
+describe the application backtracking from the current working directory and
+from the directory containing the file that called us (i.e. what happens to
+be C<(caller($n))[1]>).
+
+Parameters:
+
+=over
+
+=item B<< n >>
+
+an integer, defaulting to 0, that tells how to call
+C<caller()>. You shouldn't need to set it, anyway.
+
+=item B<< unix >>
+
+when set, the name of the directory will be returned in Unix format, so that
+you can use it with C<use lib>.
+
+=back
+
+This should be useful if you want to put a default configuration file there or
+if you want to set up a shared library directory.

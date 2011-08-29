@@ -1,4 +1,8 @@
 {{$NEXT}}
+   - added find_code_dir and service_vars (shortcut to
+     get the vars directly)
+
+0.7.0_02  2011-08-29 00:49:46 Europe/Rome
    - prevented /home/dotcloud/environment.json to be seen
      by some tests in order to avoid failure in dotCloud
 
