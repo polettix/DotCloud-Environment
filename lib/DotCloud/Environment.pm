@@ -149,7 +149,7 @@ sub _get_environment {
    return _slurp($self->{_params}{fallback_file})
       if exists $self->{_params}{fallback_file};
 
-   return unless $self->{backtrack};
+   return unless $params{backtrack} || $self->{backtrack};
 
    # We will backtrack from three starting points:
    # * the "root" directory for the application, i.e
@@ -296,6 +296,9 @@ __END__
    # get an object, fallback to $path if not in dotCloud deploy
    my $dcenv = DotCloud::Environment->new(fallback_file => $path);
 
+   # even more lazy, make it look for files in various directories
+   $dcenv = DotCloud::Environment->new(backtrack => 1);
+
    # you should now which services make part of your stack!
    my $nosqldb_conf = $dcenv->service('nosqldb');
    my $type = $nosqldb_conf->{type}; # e.g. mysql, redis, etc.
@@ -397,6 +400,11 @@ use the provided string if other methods fail;
 
 use the provided file if other methods fail.
 
+=item B<< backtrack >>
+
+if nothing works and no fallback is set, look for suitable files
+in filesystem.
+
 =back
 
 Unless C<no_load> is passed and set to true, the object creation also
@@ -411,8 +419,9 @@ Returns the new object or C<croak>s if errors occur.
    $dcenv->load({%params});
 
 loads the configuration for an application. The accepted parameters are
-C<environment_string>, C<environment_file>, C<fallback_string> and
-C<fallback_file> with the same meaning as in the constructor (see L</new>).
+C<environment_string>, C<environment_file>, C<fallback_string>,
+C<fallback_file> and C<backtrack> with the same meaning as in the
+constructor (see L</new>).
 
 The sequence to get the configuration string is the following:
 
@@ -460,6 +469,29 @@ from parameter set in the constructor
 from parameter set in the constructor
 
 =back
+
+If none of the above works there's still some hope in case there is
+option C<backtrack> (or it was specified to the constructor). In this
+case, either file is searched recursively starting from the
+following directories:
+
+=over
+
+=item *
+
+the one returned by L</find_code_dir> (but as if it were called by
+the caller of L</load>, i.e. with a value of C<n> equal to 1)
+
+=item *
+
+the current working directory
+
+=item *
+
+the directory of the file that called us.
+
+=back
+
 
 It is possible to load multiple configuration files from
 multiple applications.
