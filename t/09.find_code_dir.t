@@ -12,6 +12,7 @@ use Test::Exception;
 use Data::Dumper;
 
 use DotCloud::Environment;
+$DotCloud::Environment::main_dotcloud_code_dir = '';
 use JSON;
 
 my $json = load_json();

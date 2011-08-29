@@ -1,4 +1,8 @@
 {{$NEXT}}
+   - prevented /home/dotcloud/code/ to be set
+     by some tests in order to avoid failure in dotCloud
+
+0.7.0_03  2011-08-29 03:37:28 Europe/Rome
    - added find_code_dir and service_vars (shortcut to
      get the vars directly)
    - added possibility to backtrack from some directories

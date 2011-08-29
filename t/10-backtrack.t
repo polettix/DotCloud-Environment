@@ -13,6 +13,7 @@ use Data::Dumper;
 
 use DotCloud::Environment;
 $DotCloud::Environment::main_file_path = '';
+$DotCloud::Environment::main_dotcloud_code_dir = '';
 chdir dirname(__FILE__);
 {
    my $env;
