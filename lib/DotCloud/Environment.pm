@@ -319,6 +319,13 @@ __END__
    my $dbh = DBI->connect("dbi:mysql:host=$host;port=$port;database=wow",
       $user, $pass, {RaiseError => 1});
 
+   # say that you have a 'lib' in your code base directory, i.e. the one
+   # linked by /home/dotcloud/code and that contains dotcloud.yml
+   use DotCloud::Environment;
+   use lib DotCloud::Environment::find_code_dir(unix => 1) . '/lib';
+   use Module::In::Lib;
+
+
 =head1 DESCRIPTION
 
 L<DotCloud::Environment> is useful when you design applications to be
