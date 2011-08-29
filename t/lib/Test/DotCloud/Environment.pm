@@ -80,6 +80,26 @@ sub default_data_structure {
 
 } ## end sub default_data_structure
 
+sub call_find_code_dir {
+   require Cwd;
+   my $cwd = Cwd::cwd();
+   require File::Basename;
+   chdir File::Basename::dirname(__FILE__);
+   my $retval = DotCloud::Environment::find_code_dir(unix => 1);
+   chdir $cwd;
+   return $retval;
+}
+
+sub othercall_find_code_dir {
+   require Cwd;
+   my $cwd = Cwd::cwd();
+   require File::Basename;
+   chdir File::Basename::dirname(File::Basename::dirname(__FILE__));
+   my $retval = DotCloud::Environment::find_code_dir(unix => 1);
+   chdir $cwd;
+   return $retval;
+}
+
 1;
 __END__
 
