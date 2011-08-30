@@ -1,5 +1,6 @@
 {{$NEXT}}
    - added some documentation
+   - added dependency on Test::Exception
 
 0.7.0_04  2011-08-29 03:49:25 Europe/Rome
    - prevented /home/dotcloud/code/ to be set
