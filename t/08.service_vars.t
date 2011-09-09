@@ -55,3 +55,25 @@ my $json = load_json();
    ) or diag(Dumper(\%service_vars));
 
 }
+
+{
+   my %service_vars;
+   lives_ok {
+      my $env = DotCloud::Environment->new(environment_string => $json);
+      %service_vars = $env->service_vars('sqldb');
+   }
+   "constructor and service_vars with just service name live";
+   is_deeply(
+      \%service_vars,
+      {
+         'password' => 'mysql-password-here',
+         'url' =>
+'mysql://root:mysql-password-here@whatever-polettix.dotcloud.com:13747',
+         'port'  => '13747',
+         'login' => 'root',
+         'host'  => 'whatever-polettix.dotcloud.com',
+      },
+      'grabbed data is correct for whole vars'
+   ) or diag(Dumper(\%service_vars));
+
+}

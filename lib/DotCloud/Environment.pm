@@ -294,7 +294,10 @@ sub _service {
 
 sub service {
    my $self = shift;
-   my %params = (@_ > 0 && ref($_[0])) ? %{$_[0]} : @_;
+   my %params = @_ > 1 ? @_
+      : @_ == 0        ? ()
+      : ref($_[0])     ? %{$_[0]}
+      :                  (service => $_[0]);
 
    my $service = $params{service};
 
@@ -320,8 +323,11 @@ sub service {
 
 sub service_vars {
    my $self    = shift;
-   my %params  = (@_ > 0 && ref($_[0])) ? %{$_[0]} : @_;
-   my $service = $self->service(@_);
+   my %params = @_ > 1 ? @_
+      : @_ == 0        ? ()
+      : ref($_[0])     ? %{$_[0]}
+      :                  (service => $_[0]);
+   my $service = $self->service(%params);
    if (exists $params{list}) {
       my @list   = @{$params{list}};
       my @values = @{$service->{vars}}{@list};
@@ -507,11 +513,11 @@ For example, suppose that you want to implement a function to
 connect to a Redis service called C<redisdb>:
 
    sub get_redis {
-      my $vars = dotvars('redisdb');
+      my %vars = dotvars('redisdb');
 
       require Redis;
-      my $redis = Redis->new(server => "$vars->{host}:$vars->{port}");
-      $redis->auth($vars->{password});
+      my $redis = Redis->new(server => "$vars{host}:$vars{port}");
+      $redis->auth($vars{password});
       return $redis;
    }
 
@@ -556,6 +562,9 @@ It can be useful if you don't want a global variable in your code, e.g.:
 This function gets the configuration variables for the provided
 service using the default singleton instance. Most of the time this
 is exactly what you want, and nothing more.
+
+This function actually calls L</service_vars> behind the scenes, you can
+pass all the parameters that the method accepts.
 
 =head2 B<< find_code_dir >>
 
@@ -650,7 +659,7 @@ Returns the new object or C<croak>s if errors occur.
    $dcenv->load(%params);
    $dcenv->load({%params});
 
-loads the configuration for an application. The accepted parameters are
+Load the configuration for an application. The accepted parameters are
 C<environment_string>, C<environment_file>, C<fallback_string>,
 C<fallback_file> and C<backtrack> with the same meaning as in the
 constructor (see L</new>).
@@ -724,6 +733,9 @@ the directory of the file that called us.
 
 =back
 
+Actually, option C<backtrack> is enabled by default, so if you
+B<do not> want the behaviour above you have to explicitly disable
+it (e.g. passing C<< backtrack => 0 >> in the constructor).
 
 It is possible to load multiple configuration files from
 multiple applications.
@@ -736,7 +748,7 @@ Return a reference to the object itself.
    %json_for = $dcenv->as_json();
    $json_for = $dcenv->as_json();
 
-this method rebuilds the JSON representations of all the
+Rebuild the JSON representations of all the
 applications.
 
 Returns a hash (in list context) or an anonymous hash (in scalar
@@ -748,7 +760,7 @@ JSON string.
    %yaml_for = $dcenv->as_yaml();
    $yaml_for = $dcenv->as_yaml();
 
-this method rebuilds the YAML representations of all the
+Rebuild the YAML representations of all the
 applications.
 
 Returns a hash (in list context) or an anonymous hash (in scalar
@@ -759,7 +771,7 @@ YAML string.
 
    $dcenv->merge_json($json_string);
 
-add (or replace) the configuration of an application, provided as
+Add (or replace) the configuration of an application, provided as
 JSON string. You should not need to do this explicitly, because
 this does the same for you with autodetection of the format:
 
@@ -771,7 +783,7 @@ Return a reference to the object itself.
 
    $dcenv->merge_yaml($yaml_string);
 
-add (or replace) the configuration of an application, provided as
+Add (or replace) the configuration of an application, provided as
 YAML string. You should not need to do this explicitly, because
 this does the same for you with autodetection of the format:
 
@@ -790,7 +802,7 @@ working with.
    my %conf_for = $dcenv->applications();
    my $conf_for = $dcenv->applications();
 
-returns a hash (in list context) or anonymous hash (in scalar context)
+Get a hash (in list context) or anonymous hash (in scalar context)
 with the relevant data of all the applications. Example:
 
    {
@@ -830,7 +842,7 @@ with the relevant data of all the applications. Example:
    my %conf_for = $dcenv->application($appname);
    my $conf_for = $dcenv->application($appname);
 
-returns a hash (in list context) or anonymous hash (in scalar context)
+Get a hash (in list context) or anonymous hash (in scalar context)
 with the relevant data for the requested application. Example:
 
    {
@@ -865,7 +877,7 @@ with the relevant data for the requested application. Example:
    my %conf_for = $dcenv->service(%params); # also with \%params
    my $conf_for = $dcenv->service(%params); # also with \%params
 
-returns a hash (in list context) or anonymous hash (in scalar context)
+Get a hash (in list context) or anonymous hash (in scalar context)
 with the relevant data for the requested service. Example:
 
    {
@@ -922,13 +934,19 @@ C<croak>s.
 
 =method service_vars
 
+   my %vars   = $dcenv->service_vars('service-name');
+   my $vars   = $dcenv->service_vars('service-name');
    my %vars   = $dcenv->service_vars(%params); # also \%params
    my $vars   = $dcenv->service_vars(%params); # also \%params
    my @values = $dcenv->service_vars(%params); # also \%params
    my $values = $dcenv->service_vars(%params); # also \%params
 
-this method is a shorthand to get the configuration variables of a single
-service. Depending on the input, the return value might be structured like
+Shorthand to get the configuration variables of a single
+service.
+
+The input parameter list can be a single string with the name of
+the service, or a hash/anonymous hash with parameters.
+Depending on the input, the return value might be structured like
 a hash or like an array:
 
 =over
@@ -958,4 +976,3 @@ If this parameter is not present, the whole name/value hash is returned, either
 as a list or as an anonymous hash depending on the context.
 
 =back
-

@@ -1,5 +1,7 @@
 {{$NEXT}}
    - perltidy-ed code
+   - minor documentation modifications
+   - can call service()/service_vars() with just service name
 
 0.8.0_02  2011-09-09 21:04:05 Europe/Rome
    - added dotvars as a further simplification
