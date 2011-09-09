@@ -1,4 +1,5 @@
 {{$NEXT}}
+   - added dotvars as a further simplification
 
 0.8.0_01  2011-09-09 19:30:03 Europe/Rome
    - added "suggested/typical usage"

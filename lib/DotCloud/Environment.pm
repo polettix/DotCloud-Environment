@@ -9,7 +9,7 @@ use English qw( -no_match_vars );
 use Storable qw< dclone >;
 
 use Sub::Exporter -setup => {
-   exports => [ qw< dotenv find_code_dir path_for > ],
+   exports => [ qw< dotenv dotvars find_code_dir path_for > ],
 };
 
 our $main_file_path = '/home/dotcloud/environment.json';
@@ -24,6 +24,10 @@ my @application_keys = qw< environment project service_id service_name >;
       $default_instance ||= __PACKAGE__->new();
       return $default_instance;
    }
+}
+
+sub dotvars {
+   return dotenv()->service_vars(@_);
 }
 
 sub find_code_dir {
@@ -331,8 +335,8 @@ __END__
    # Most typical usage when you set a default environment.json file
    # in the root of your project and you need to access the variables
    # of the 'redis' service
-   use DotCloud::Environment 'dotenv';
-   my $redis_vars = dotenv->service_vars('redis');
+   use DotCloud::Environment 'dotvars';
+   my $redis_vars = dotvars('redis');
 
    # Not-very-typical usage examples from now on!
 
@@ -480,13 +484,19 @@ In the shared module you can do this:
    use DotCloud::Environment 'dotenv';
 
    # ... when you need it...
-   my $vars = dotenv()->service_vars('service-name');
+   my $service = dotenv()->service('service-name');
+
+Most of the time all you need is to access the variables related
+to a specific service, so there's a shortcut for this:
+
+   use DotCloud::Environment 'dotvars';
+   my $vars = dotvars('service-name');
 
 For example, suppose that you want to implement a function to
 connect to a Redis service called C<redisdb>:
 
    sub get_redis {
-      my $vars = dotenv()->service_vars('redisdb');
+      my $vars = dotvars('redisdb');
 
       require Redis;
       my $redis = Redis->new(server => "$vars->{host}:$vars->{port}");
@@ -494,7 +504,7 @@ connect to a Redis service called C<redisdb>:
       return $redis;
    }
 
-Of course you can use C<dotenv> directly in C<FrontEnd.pm> and
+Of course you can use C<dotenv>/C<dotvars> directly in C<FrontEnd.pm> and
 C<BackEnd.pm>, but you will probably benefit from refactoring your
 common code to avoid duplications.
 
@@ -510,7 +520,9 @@ This module uses L<Sub::Exporter> under the hood; this means that
 if you're not happy with the name of the imported subroutines you
 can provide your own names, e.g.:
 
-   use DotCloud::Environment dotenv => { -as => 'dotcloud_environment' };
+   use DotCloud::Environment
+      dotvars => { -as => 'dotcloud_variables_for' };
+   my $vars = dotcloud_variables_for('my-service');
 
 =head2 B<< dotenv >>
 
@@ -525,6 +537,14 @@ It can be useful if you don't want a global variable in your code, e.g.:
    my @application_names = dotenv()->application_names();
    # ...
    my $vars = dotenv()->service_vars('my-sql-db');
+
+=head2 B<< dotvars >>
+
+   my $vars = dotvars('service-name');
+
+This function gets the configuration variables for the provided
+service using the default singleton instance. Most of the time this
+is exactly what you want, and nothing more.
 
 =head2 B<< find_code_dir >>
 
