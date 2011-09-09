@@ -8,14 +8,56 @@ use Carp;
 use English qw( -no_match_vars );
 use Storable qw< dclone >;
 
+use Sub::Exporter -setup => {
+   exports => [ qw< dotenv find_code_dir path_for > ],
+};
+
 our $main_file_path = '/home/dotcloud/environment.json';
 our $main_dotcloud_code_dir = '/home/dotcloud/code';
 my @application_keys = qw< environment project service_id service_name >;
 
+### FUNCTIONAL INTERFACE ###
+
+{
+   my $default_instance;
+   sub dotenv {
+      $default_instance ||= __PACKAGE__->new();
+      return $default_instance;
+   }
+}
+
+sub find_code_dir {
+   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
+   my $dir = _find_code_dir($params{n});
+   if (defined($dir) && $params{unix}) {
+      require File::Spec;
+      my $reldir = File::Spec->abs2rel($dir);
+      my @dirs = File::Spec->splitdir($reldir);
+      $dir = join '/', @dirs;
+   }
+   return $dir;
+}
+
+sub path_for {
+   my @subs = @_;
+   (my $base = find_code_dir(unix => 1)) =~ s{/+\z}{}mxs;
+   return map {
+      $_ =~ s{\A /+}{}mxs;
+      $base . '/' . $_;
+   } @subs;
+}
+
+
+### OBJECT ORIENTED INTERFACE ###
+
 sub new {
    my $package = shift;
    my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
-   my $self = bless { _params => \%params, _envfor => {} }, $package;
+   my $self = bless {
+      _params => \%params,
+      _envfor => {},
+      backtrack => 1,  # backtrack by default
+   }, $package;
    $self->{backtrack} = $params{backtrack} if exists $params{backtrack};
    $self->load() unless $params{no_load};
    return $self;
@@ -197,18 +239,6 @@ sub _find_code_dir {
    }
 }
 
-sub find_code_dir {
-   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
-   my $dir = _find_code_dir($params{n});
-   if (defined($dir) && $params{unix}) {
-      require File::Spec;
-      my $reldir = File::Spec->abs2rel($dir);
-      my @dirs = File::Spec->splitdir($reldir);
-      $dir = join '/', @dirs;
-   }
-   return $dir;
-}
-
 sub _dclone {
    return dclone(ref $_[0] ? $_[0] : {@_});
 }
@@ -291,18 +321,28 @@ __END__
 
 =head1 SYNOPSIS
 
-   use DotCloud::Environment;
+
+   # Most typical usage, suppose you have a shared 'lib' directory
+   # under the root of your dotCloud directory hierarchy
+   use DotCloud::Environment 'path_for';
+   use lib path_for('lib');
+   use My::Shared::Module; # in your project-root/lib directory
+
+   # Most typical usage when you set a default environment.json file
+   # in the root of your project and you need to access the variables
+   # of the 'redis' service
+   use DotCloud::Environment 'dotenv';
+   my $redis_vars = dotenv->service_vars('redis');
+
+   # Not-very-typical usage examples from now on!
 
    # get an object, fallback to $path if not in dotCloud deploy
    my $dcenv = DotCloud::Environment->new(fallback_file => $path);
 
-   # even more lazy, make it look for files in various directories
-   $dcenv = DotCloud::Environment->new(backtrack => 1);
-
    # you should now which services make part of your stack!
    my $nosqldb_conf = $dcenv->service('nosqldb');
    my $type = $nosqldb_conf->{type}; # e.g. mysql, redis, etc.
-   my $vars = $nosqldb_conf->{vars}; # e.g. login, password, host, port...
+   my $vars = $nosqldb_conf->{vars}; # e.g. login, password, host...
 
    # suppose your nosqldb service is redis...
    require Redis;
@@ -316,14 +356,8 @@ __END__
    my ($host, $port, $user, $pass)
       = @{$conf->{vars}}{qw< host port login password >}
    require DBI;
-   my $dbh = DBI->connect("dbi:mysql:host=$host;port=$port;database=wow",
+   my $dbh = DBI->connect("dbi:mysql:host=$host;port=$port;database=db",
       $user, $pass, {RaiseError => 1});
-
-   # say that you have a 'lib' in your code base directory, i.e. the one
-   # linked by /home/dotcloud/code and that contains dotcloud.yml
-   use DotCloud::Environment;
-   use lib DotCloud::Environment::find_code_dir(unix => 1) . '/lib';
-   use Module::In::Lib;
 
 
 =head1 DESCRIPTION
@@ -372,10 +406,170 @@ if C</home/dotcloud/environment.json> is not found;
 =item *
 
 setting up the C<DOTCLOUD_ENVIRONMENT> environment variable to point
-to the file to be used;
+to the file to be used.
 
 =back
 
+=head2 Suggested/Typical Usage
+
+In order to keep your code clean, you will probably be dividing it
+depending on the functional block that will be deployed as a service
+in dotCloud. Suppose that you have a frontend service, a backend service
+and a database; you probably have the following directory layout:
+
+   project
+   +- dotcloud.yml
+   +- backend
+   |  | ...
+   |  +- lib
+   |     +- Backend.pm
+   +- frontend
+   |  | ...
+   |  +- lib
+   |     +- FrontEnd.pm
+   +- lib
+      +- Shared.pm
+
+Each service is put into a separate directory and all the code
+that they both use (e.g. functions to connect to databases) is put in
+a common C<lib> directory.
+
+How should you use DotCloud::Environment?
+
+The main goal is to let it find the right C<environment.json> (or,
+equivalently, C<environment.yml>) depending on the environment you
+are into. If you are in dotCloud there is actually no problem, because
+by default the I<right> C</home/dotcloud/environment.json> file is
+selected; for your local development the best thing to do is to put
+the configuration file in the project's root directory, which becomes
+like this:
+
+   project
+   +- dotcloud.yml
+   +- backend
+   |  | ...
+   |  +- lib
+   |     +- Backend.pm
+   +- frontend
+   |  | ...
+   |  +- lib
+   |     +- FrontEnd.pm
+   +- lib
+   |  +- Shared.pm
+   |
+   +- environment.json
+
+Putting the file in that position lets DotCloud::Environment find
+it by default when no C</home/dotcloud/environment.json> file (or
+the equivalent YAML file) is found in the system. Which hopefully is
+the case of your development environment.
+
+In this case, you would have this in each service:
+
+   # -- in BackEnd.pm and FrontEnd.pm --
+   use DotCloud::Environment 'path_for';
+   use lib path_for('lib');
+   use Shared ...;
+
+The function L</path_for> helps you to set up the right path in
+C<@INC> so that the module can find the shared code.
+
+In the shared module you can do this:
+
+   # -- in Shared.pm --
+   use DotCloud::Environment 'dotenv';
+
+   # ... when you need it...
+   my $vars = dotenv()->service_vars('service-name');
+
+For example, suppose that you want to implement a function to
+connect to a Redis service called C<redisdb>:
+
+   sub get_redis {
+      my $vars = dotenv()->service_vars('redisdb');
+
+      require Redis;
+      my $redis = Redis->new(server => "$vars->{host}:$vars->{port}");
+      $redis->auth($vars->{password});
+      return $redis;
+   }
+
+Of course you can use C<dotenv> directly in C<FrontEnd.pm> and
+C<BackEnd.pm>, but you will probably benefit from refactoring your
+common code to avoid duplications.
+
+
+=head1 FUNCTIONS
+
+Nothing is exported by default, but you can import the following
+functions. If you need both, you can use the C<:all> tag, e.g.:
+
+   use DotCloud::Environment ':all';
+
+This module uses L<Sub::Exporter> under the hood; this means that
+if you're not happy with the name of the imported subroutines you
+can provide your own names, e.g.:
+
+   use DotCloud::Environment dotenv => { -as => 'dotcloud_environment' };
+
+=head2 B<< dotenv >>
+
+   my $singleton = dotenv();
+
+This function returns a default instance of DotCloud::Environment that
+should suit the needs for the typical/suggested usage. Subsequent calls
+to the function always return the same object.
+
+It can be useful if you don't want a global variable in your code, e.g.:
+
+   my @application_names = dotenv()->application_names();
+   # ...
+   my $vars = dotenv()->service_vars('my-sql-db');
+
+=head2 B<< find_code_dir >>
+
+   my $code_directory = find_code_dir(%params);
+
+This function tries to find the file F<dotcloud.yml> that
+describe the application backtracking from the current working directory and
+from the directory containing the file that called us (i.e. what happens to
+be C<(caller($n))[1]>).
+
+Parameters:
+
+=over
+
+=item B<< n >>
+
+an integer, defaulting to 0, that tells how to call
+C<caller()>. You shouldn't need to set it, anyway.
+
+=item B<< unix >>
+
+when set, the name of the directory will be returned in Unix format, so that
+you can use it with C<use lib>. By default the format is the same as the
+system.
+
+=back
+
+This should be useful if you want to put a default configuration file there or
+if you want to set up a shared library directory. If you are interested into
+this feature, anyway, look at L</path_for> which is easier to use.
+
+
+=head2 B<< path_for >>
+
+   use lib path_for('lib');
+
+This function produces a list of paths that are suitable for
+C<use lib>. It uses L</find_code_dir> internally, see it for details.
+
+You should pass a list of subdirectories which will be rebased using
+L</find_code_dir> as a parent directory. If you
+are actually in the dotCloud enviroment, the example above produces
+the path C</home/dotcloud/code/lib>.
+
+Returns a list of Unix paths, one element for each input directory.
 
 
 =method new
@@ -734,32 +928,3 @@ as a list or as an anonymous hash depending on the context.
 
 =back
 
-=method find_code_dir
-
-   my $code_directory = $dcenv->find_code_dir(%params);
-   my $code_directory = DotCloud::Environment->find_code_dir(%params);
-   my $code_directory = DotCloud::Environment::find_code_dir(%params);
-
-not really a method, this function tries to find the file F<dotcloud.yml> that
-describe the application backtracking from the current working directory and
-from the directory containing the file that called us (i.e. what happens to
-be C<(caller($n))[1]>).
-
-Parameters:
-
-=over
-
-=item B<< n >>
-
-an integer, defaulting to 0, that tells how to call
-C<caller()>. You shouldn't need to set it, anyway.
-
-=item B<< unix >>
-
-when set, the name of the directory will be returned in Unix format, so that
-you can use it with C<use lib>.
-
-=back
-
-This should be useful if you want to put a default configuration file there or
-if you want to set up a shared library directory.

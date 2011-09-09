@@ -1,4 +1,11 @@
 {{$NEXT}}
+   - added "suggested/typical usage"
+   - added path_for simplification
+   - set backtrace to 1 by default, added tests
+   - added quick access to singleton instance
+   - added functional interface via Sub::Exporter
+
+0.7.0_05  2011-08-30 06:48:59 Europe/Rome
    - added some documentation
    - added dependency on Test::Exception
 
