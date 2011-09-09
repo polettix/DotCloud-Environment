@@ -8,11 +8,10 @@ use Carp;
 use English qw( -no_match_vars );
 use Storable qw< dclone >;
 
-use Sub::Exporter -setup => {
-   exports => [ qw< dotenv dotvars find_code_dir path_for > ],
-};
+use Sub::Exporter -setup =>
+  {exports => [qw< dotenv dotvars find_code_dir path_for >],};
 
-our $main_file_path = '/home/dotcloud/environment.json';
+our $main_file_path         = '/home/dotcloud/environment.json';
 our $main_dotcloud_code_dir = '/home/dotcloud/code';
 my @application_keys = qw< environment project service_id service_name >;
 
@@ -20,6 +19,7 @@ my @application_keys = qw< environment project service_id service_name >;
 
 {
    my $default_instance;
+
    sub dotenv {
       $default_instance ||= __PACKAGE__->new();
       return $default_instance;
@@ -31,16 +31,16 @@ sub dotvars {
 }
 
 sub find_code_dir {
-   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
+   my %params = (@_ > 0 && ref $_[0]) ? %{$_[0]} : @_;
    my $dir = _find_code_dir($params{n});
    if (defined($dir) && $params{unix}) {
       require File::Spec;
       my $reldir = File::Spec->abs2rel($dir);
-      my @dirs = File::Spec->splitdir($reldir);
+      my @dirs   = File::Spec->splitdir($reldir);
       $dir = join '/', @dirs;
-   }
+   } ## end if (defined($dir) && $params...
    return $dir;
-}
+} ## end sub find_code_dir
 
 sub path_for {
    my @subs = @_;
@@ -49,32 +49,32 @@ sub path_for {
       $_ =~ s{\A /+}{}mxs;
       $base . '/' . $_;
    } @subs;
-}
-
+} ## end sub path_for
 
 ### OBJECT ORIENTED INTERFACE ###
 
 sub new {
    my $package = shift;
-   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
-   my $self = bless {
-      _params => \%params,
-      _envfor => {},
-      backtrack => 1,  # backtrack by default
+   my %params  = (@_ > 0 && ref $_[0]) ? %{$_[0]} : @_;
+   my $self    = bless {
+      _params   => \%params,
+      _envfor   => {},
+      backtrack => 1,          # backtrack by default
    }, $package;
    $self->{backtrack} = $params{backtrack} if exists $params{backtrack};
    $self->load() unless $params{no_load};
    return $self;
-}
+} ## end sub new
 
 sub _serialize_multiple {
-   my $self = shift;
-   my $serializer = shift;
+   my $self         = shift;
+   my $serializer   = shift;
    my @applications = @_ > 0 ? @_ : $self->application_names();
-   my %retval = map { $_ => $serializer->($self->_recompact($_))} @applications;
+   my %retval =
+     map { $_ => $serializer->($self->_recompact($_)) } @applications;
    return %retval if wantarray();
    return \%retval;
-}
+} ## end sub _serialize_multiple
 
 sub as_json {
    my $self = shift;
@@ -90,8 +90,8 @@ sub as_yaml {
 
 sub load {
    my $self = shift;
-   defined(my $env= $self->_get_environment(@_))
-      or croak 'no suitable environment found';
+   defined(my $env = $self->_get_environment(@_))
+     or croak 'no suitable environment found';
    if ($env =~ /\A \s* {/mxs) {
       $self->merge_json($env);
    }
@@ -99,12 +99,13 @@ sub load {
       $self->merge_yaml($env);
    }
    return $self;
-}
+} ## end sub load
 
 sub _recompact {
    my ($self, $application) = @_;
    my $hash = $self->application($application);
-   my %retval = map { 'DOTCLOUD_' . uc($_) => $hash->{$_} } @application_keys;
+   my %retval =
+     map { 'DOTCLOUD_' . uc($_) => $hash->{$_} } @application_keys;
    while (my ($name, $service) = each %{$hash->{services}}) {
       $name = uc($name);
       my $type = uc($service->{type});
@@ -112,9 +113,9 @@ sub _recompact {
          my $key = join '_', 'DOTCLOUD', $name, $type, uc($varname);
          $retval{$key} = $value;
       }
-   }
+   } ## end while (my ($name, $service...
    return \%retval;
-}
+} ## end sub _recompact
 
 sub _merge {
    my ($self, $hash) = @_;
@@ -124,23 +125,23 @@ sub _merge {
    my %data_for;
    while (my ($name, $value) = each %$hash) {
       my ($key) = $name =~ m{\A DOTCLOUD_ (.*) }mxs
-         or next;
+        or next;
       $key = lc $key;
       if ($flag_for{$key}) {
          $data_for{$key} = $value;
       }
       else {
-         my ($service, $type, $varname)
-            = $key =~ m{\A (.*) _ ([^_]+) _ ([^_]+) \z}mxs;
+         my ($service, $type, $varname) =
+           $key =~ m{\A (.*) _ ([^_]+) _ ([^_]+) \z}mxs;
          $data_for{services}{$service}{type} = $type;
          $data_for{services}{$service}{vars}{$varname} = $value;
-      }
-   }
-   
+      } ## end else [ if ($flag_for{$key})
+   } ## end while (my ($name, $value)...
+
    $self->{_envfor}{$data_for{project}} = \%data_for;
 
    return $self;
-}
+} ## end sub _merge
 
 sub merge_json {
    my ($self, $env) = @_;
@@ -157,43 +158,43 @@ sub merge_yaml {
 sub _slurp {
    my ($filename) = @_;
    open my $fh, '<:encoding(utf8)', $filename
-      or croak "open('$filename'): $OS_ERROR";
+     or croak "open('$filename'): $OS_ERROR";
    local $/;
    my $text = <$fh>;
    close $fh;
    return $text;
-}
+} ## end sub _slurp
 
 sub _to_chars {
    my ($string) = @_;
    return $string if utf8::is_utf8($string);
    require Encode;
    return Encode::decode('utf8', $string);
-}
+} ## end sub _to_chars
 
 sub _get_environment {
    my $self = shift;
-   my %params = (@_ > 0 && ref $_[0]) ? %{ $_[0] } : @_;
+   my %params = (@_ > 0 && ref $_[0]) ? %{$_[0]} : @_;
    return _to_chars($params{environment_string})
-      if exists $params{environment_string};
+     if exists $params{environment_string};
    return _slurp($params{environment_file})
-      if exists $params{environment_file};
+     if exists $params{environment_file};
    return _to_chars($self->{_params}{environment_string})
-      if exists $self->{_params}{environment_string};
+     if exists $self->{_params}{environment_string};
    return _slurp($self->{_params}{environment_file})
-      if exists $self->{_params}{environment_file};
+     if exists $self->{_params}{environment_file};
    return _slurp($ENV{DOTCLOUD_ENVIRONMENT})
-      if exists $ENV{DOTCLOUD_ENVIRONMENT};
+     if exists $ENV{DOTCLOUD_ENVIRONMENT};
    return _slurp($main_file_path)
-      if -e $main_file_path;
+     if -e $main_file_path;
    return _to_chars($params{fallback_string})
-      if exists $params{fallback_string};
+     if exists $params{fallback_string};
    return _slurp($params{fallback_file})
-      if exists $params{fallback_file};
+     if exists $params{fallback_file};
    return _to_chars($self->{_params}{fallback_string})
-      if exists $self->{_params}{fallback_string};
+     if exists $self->{_params}{fallback_string};
    return _slurp($self->{_params}{fallback_file})
-      if exists $self->{_params}{fallback_file};
+     if exists $self->{_params}{fallback_file};
 
    return unless $params{backtrack} || $self->{backtrack};
 
@@ -207,21 +208,24 @@ sub _get_environment {
    require Cwd;
    require File::Basename;
    require File::Spec;
-   for my $path ($code_dir, Cwd::cwd(), File::Basename::dirname((caller())[1])) {
+   for my $path ($code_dir, Cwd::cwd(),
+      File::Basename::dirname((caller())[1]))
+   {
       my ($volume, $directories) = File::Spec->splitpath($path, 'no-file');
       my @directories = File::Spec->splitdir($directories);
       while (@directories) {
          my $directories = File::Spec->catdir(@directories);
          for my $format (qw< json yaml >) {
-            my $path = File::Spec->catpath($volume, $directories, "environment.$format");
+            my $path = File::Spec->catpath($volume, $directories,
+               "environment.$format");
             return _slurp($path) if -e $path;
          }
          pop @directories;
-      }
-   }
+      } ## end while (@directories)
+   } ## end for my $path ($code_dir...
 
    return;
-}
+} ## end sub _get_environment
 
 sub _find_code_dir {
    return $main_dotcloud_code_dir if -d $main_dotcloud_code_dir;
@@ -231,17 +235,23 @@ sub _find_code_dir {
    require File::Basename;
    require File::Spec;
    for my $path (Cwd::cwd(), File::Basename::dirname((caller($n))[1])) {
-      my $abspath = File::Spec->file_name_is_absolute($path) ? $path : File::Spec->rel2abs($path);
-      my ($volume, $directories) = File::Spec->splitpath($abspath, 'no-file');
+      my $abspath =
+        File::Spec->file_name_is_absolute($path)
+        ? $path
+        : File::Spec->rel2abs($path);
+      my ($volume, $directories) =
+        File::Spec->splitpath($abspath, 'no-file');
       my @directories = File::Spec->splitdir($directories);
       while (@directories) {
          my $directories = File::Spec->catdir(@directories);
-         my $filepath = File::Spec->catpath($volume, $directories, 'dotcloud.yml');
-         return File::Spec->catpath($volume, $directories, '') if -e $filepath;
+         my $filepath =
+           File::Spec->catpath($volume, $directories, 'dotcloud.yml');
+         return File::Spec->catpath($volume, $directories, '')
+           if -e $filepath;
          pop @directories;
-      }
-   }
-}
+      } ## end while (@directories)
+   } ## end for my $path (Cwd::cwd(...
+} ## end sub _find_code_dir
 
 sub _dclone {
    return dclone(ref $_[0] ? $_[0] : {@_});
@@ -254,11 +264,11 @@ sub _dclone_return {
 }
 
 sub application_names {
-   my $self = shift;
+   my $self  = shift;
    my @names = keys %{$self->{_envfor}};
    return @names if wantarray();
    return \@names;
-}
+} ## end sub application_names
 
 sub applications {
    my $self = shift;
@@ -266,13 +276,13 @@ sub applications {
 }
 
 sub application {
-   my $self = shift;
+   my $self        = shift;
    my $application = shift;
    $self->{_envfor}{$application} = _dclone(@_) if @_;
    croak "no application '$application'"
-      unless exists $self->{_envfor}{$application};
+     unless exists $self->{_envfor}{$application};
    _dclone_return($self->{_envfor}{$application});
-}
+} ## end sub application
 
 sub _service {
    my ($self, $application, $service);
@@ -280,8 +290,7 @@ sub _service {
    my $services = $self->{_envfor}{$application}{services};
    return unless exists $services->{$service};
    return $services->{$service};
-}
-
+} ## end sub _service
 
 sub service {
    my $self = shift;
@@ -290,35 +299,37 @@ sub service {
    my $service = $params{service};
 
    my @found_services;
-   my @applications = $service =~ s{\A (.*) \.}{}mxs ? $1
-      : exists $params{application} ? $params{application}
-      : $self->application_names();
+   my @applications =
+       $service =~ s{\A (.*) \.}{}mxs ? $1
+     : exists $params{application} ? $params{application}
+     :                               $self->application_names();
    for my $candidate (@applications) {
-      my $services = $self->application($candidate)->{services}; # this croaks
+      my $services =
+        $self->application($candidate)->{services};    # this croaks
       push @found_services, $services->{$service}
-         if exists $services->{$service};
-   }
+        if exists $services->{$service};
+   } ## end for my $candidate (@applications)
 
    croak "cannot find requested service"
-      if @found_services == 0;
+     if @found_services == 0;
    croak "ambiguous request for service '$service', there are many"
-      if @found_services > 1;
+     if @found_services > 1;
 
    _dclone_return(@found_services);
-}
+} ## end sub service
 
 sub service_vars {
-   my $self = shift;
-   my %params = (@_ > 0 && ref($_[0])) ? %{$_[0]} : @_;
+   my $self    = shift;
+   my %params  = (@_ > 0 && ref($_[0])) ? %{$_[0]} : @_;
    my $service = $self->service(@_);
    if (exists $params{list}) {
-      my @list = @{$params{list}};
+      my @list   = @{$params{list}};
       my @values = @{$service->{vars}}{@list};
       return @values if wantarray;
       return \@values;
-   }
+   } ## end if (exists $params{list...
    _dclone_return($service->{vars});
-}
+} ## end sub service_vars
 
 1;
 __END__

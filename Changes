@@ -1,4 +1,7 @@
 {{$NEXT}}
+   - perltidy-ed code
+
+0.8.0_02  2011-09-09 21:04:05 Europe/Rome
    - added dotvars as a further simplification
 
 0.8.0_01  2011-09-09 19:30:03 Europe/Rome
