@@ -15,7 +15,7 @@ use DotCloud::Environment;
 
 $DotCloud::Environment::main_file_path = '/path/to/nowhere';
 throws_ok {
-   my $env = DotCloud::Environment->new();
+   my $env = DotCloud::Environment->new(backtrack => 0);
 } qr{no\ suitable\ environment}, 'complains when there is no environment';
 
 $DotCloud::Environment::main_file_path = json_path();
