@@ -1,4 +1,9 @@
 {{$NEXT}}
+   - documentation cleanup
+   - releasing the module, CPAN Testers infrastructure currently
+     offline
+
+0.8.0_05  2011-09-10 02:33:31 Europe/Rome
    - retrofitted a bug fix in the tests from dotCloud environment
 
 0.8.0_04  2011-09-10 02:13:19 Europe/Rome

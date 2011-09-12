@@ -502,12 +502,14 @@ In the shared module you can do this:
 
    # ... when you need it...
    my $service = dotenv()->service('service-name');
+   my $type = $service->{type}; # e.g. mysql, redis, etc.
+   my $vars = $service->{vars}; # e.g. login, password, host...
 
 Most of the time all you need is to access the variables related
 to a specific service, so there's a shortcut for this:
 
    use DotCloud::Environment 'dotvars';
-   my $vars = dotvars('service-name');
+   my %vars = dotvars('service-name');
 
 For example, suppose that you want to implement a function to
 connect to a Redis service called C<redisdb>:
@@ -571,7 +573,7 @@ pass all the parameters that the method accepts.
    my $code_directory = find_code_dir(%params);
 
 This function tries to find the file F<dotcloud.yml> that
-describe the application backtracking from the current working directory and
+describes the application backtracking from the current working directory and
 from the directory containing the file that called us (i.e. what happens to
 be C<(caller($n))[1]>).
 
@@ -605,7 +607,7 @@ This function produces a list of paths that are suitable for
 C<use lib>. It uses L</find_code_dir> internally, see it for details.
 
 You should pass a list of subdirectories which will be rebased using
-L</find_code_dir> as a parent directory. If you
+the result of L</find_code_dir> as a parent directory. If you
 are actually in the dotCloud enviroment, the example above produces
 the path C</home/dotcloud/code/lib>.
 
@@ -644,12 +646,13 @@ use the provided file if other methods fail.
 =item B<< backtrack >>
 
 if nothing works and no fallback is set, look for suitable files
-in filesystem.
+in filesystem. This option is activated by default, so you can use
+it to I<disable> it (e.g. with C<< backtrack => 0 >>).
 
 =back
 
 Unless C<no_load> is passed and set to true, the object creation also
-calls the C</load> method.
+calls the L</load> method.
 
 Returns the new object or C<croak>s if errors occur.
 
@@ -740,7 +743,7 @@ it (e.g. passing C<< backtrack => 0 >> in the constructor).
 It is possible to load multiple configuration files from
 multiple applications.
 
-Return a reference to the object itself.
+Returns a reference to the object itself.
 
 
 =method as_json
@@ -793,7 +796,7 @@ this does the same for you with autodetection of the format:
 
    my @names = $dcenv->application_names();
 
-returns the names of the applications loaded. Generally only one
+Returns the names of the applications loaded. Generally only one
 application will be available, i.e. the one of the stack you're
 working with.
 
@@ -924,7 +927,7 @@ otherwise, if the application parameter is present it is used
 
 =item *
 
-oterwise the service is searched among all the services of all the
+otherwise the service is searched among all the services of all the
 applications.
 
 =back
