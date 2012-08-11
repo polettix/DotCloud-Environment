@@ -1,4 +1,6 @@
 {{$NEXT}}
+
+0.9.1     2012-08-11 20:36:00 Europe/Rome
    - eliminated usage of DOTCLOUD_ENVIRONMENT, DotCloud started
      using it for its own purposes
    - added DOTCLOUD_ENVIRONMENT_FILE instead of DOTCLOUD_ENVIRONMENT
