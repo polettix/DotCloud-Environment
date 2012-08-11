@@ -13,7 +13,7 @@ use Data::Dumper;
 
 use DotCloud::Environment;
 
-$ENV{DOTCLOUD_ENVIRONMENT} = yaml_path();
+$ENV{DOTCLOUD_ENVIRONMENT_FILE} = yaml_path();
 {
    my $env;
    lives_ok {

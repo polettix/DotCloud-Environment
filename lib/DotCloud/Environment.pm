@@ -183,8 +183,8 @@ sub _get_environment {
      if exists $self->{_params}{environment_string};
    return _slurp($self->{_params}{environment_file})
      if exists $self->{_params}{environment_file};
-   return _slurp($ENV{DOTCLOUD_ENVIRONMENT})
-     if exists $ENV{DOTCLOUD_ENVIRONMENT};
+   return _slurp($ENV{DOTCLOUD_ENVIRONMENT_FILE})
+     if exists $ENV{DOTCLOUD_ENVIRONMENT_FILE};
    return _slurp($main_file_path)
      if -e $main_file_path;
    return _to_chars($params{fallback_string})
@@ -426,8 +426,11 @@ if C</home/dotcloud/environment.json> is not found;
 
 =item *
 
-setting up the C<DOTCLOUD_ENVIRONMENT> environment variable to point
+setting up the C<DOTCLOUD_ENVIRONMENT_FILE> environment variable to point
 to the file to be used.
+
+B<NOTE>: as of version 0.9.1 this variable substitutes C<DOTCLOUD_ENVIRONMENT>,
+which DotCloud started using for its own purposes.
 
 =back
 
@@ -687,9 +690,11 @@ from parameter set in the constructor
 
 from parameter set in the constructor
 
-=item B<< DOTCLOUD_ENVIRONMENT >>
+=item B<< DOTCLOUD_ENVIRONMENT_FILE >>
 
-environment variable (i.e. C<$ENV{DOTCLOUD_ENVIRONMENT}>)
+environment variable (i.e. C<$ENV{DOTCLOUD_ENVIRONMENT_FILE}>). Note
+that this was formerly C<$ENV{DOTCLOUD_ENVIRONMENT}> but due to
+DotCloud starting using this variable it is no longer available.
 
 =item B<< C<$DotCloud::Environment::main_file_path> >>
 

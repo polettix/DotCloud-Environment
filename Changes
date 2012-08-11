@@ -1,4 +1,9 @@
 {{$NEXT}}
+   - eliminated usage of DOTCLOUD_ENVIRONMENT, DotCloud started
+     using it for its own purposes
+   - added DOTCLOUD_ENVIRONMENT_FILE instead of DOTCLOUD_ENVIRONMENT
+
+0.9.0     2011-09-12 08:47:07 Europe/Rome
    - documentation cleanup
    - releasing the module, CPAN Testers infrastructure currently
      offline
