@@ -52,26 +52,34 @@ sub default_data_structure {
       'service_name' => 'www',
       'services'     => {
          'nosqldb' => {
-            'type' => 'redis',
-            'vars' => {
+            'redis' => {
                'password' => 'redis-password-here',
                'url' =>
 'redis://redis:redis-password-here@whatever-polettix.dotcloud.com:13749',
                'port'  => '13749',
                'login' => 'redis',
                'host'  => 'whatever-polettix.dotcloud.com'
-            }
+            },
+            ssh => {
+               'host' => 'whatever-polettix.dotcloud.com',
+               'port' => '34279',
+               'url'  => 'ssh://redis@whatever-polettix.dotcloud.com:34279',
+            },
          },
          'sqldb' => {
-            'type' => 'mysql',
-            'vars' => {
+            'mysql' => {
                'password' => 'mysql-password-here',
                'url' =>
 'mysql://root:mysql-password-here@whatever-polettix.dotcloud.com:13747',
                'port'  => '13747',
                'login' => 'root',
                'host'  => 'whatever-polettix.dotcloud.com'
-            }
+            },
+            ssh => {
+               'host' => 'whatever-polettix.dotcloud.com',
+               'port' => '44299',
+               'url'  => 'ssh://redis@whatever-polettix.dotcloud.com:44299',
+            },
          }
       },
       'project'    => 'whatever',

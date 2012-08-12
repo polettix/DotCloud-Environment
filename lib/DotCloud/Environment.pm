@@ -7,6 +7,7 @@ use warnings;
 use Carp;
 use English qw( -no_match_vars );
 use Storable qw< dclone >;
+use Try::Tiny;
 
 use Sub::Exporter -setup =>
   {exports => [qw< dotenv dotvars find_code_dir path_for >],};
@@ -27,7 +28,24 @@ my @application_keys = qw< environment project service_id service_name >;
 }
 
 sub dotvars {
-   return dotenv()->service_vars(@_);
+   my (@retval);
+   try {
+      if (wantarray()) {
+         @retval = dotenv()->service_vars(@_);
+      }
+      else {
+         $retval[0] = dotenv()->service_vars(@_);
+      }
+   }
+   catch {
+      if (wantarray()) {
+         @retval = dotenv()->subservice_vars(@_);
+      }
+      else {
+         $retval[0] = dotenv()->subservice_vars(@_);
+      }
+   };
+   return @retval;
 }
 
 sub find_code_dir {
@@ -108,10 +126,12 @@ sub _recompact {
      map { 'DOTCLOUD_' . uc($_) => $hash->{$_} } @application_keys;
    while (my ($name, $service) = each %{$hash->{services}}) {
       $name = uc($name);
-      my $type = uc($service->{type});
-      while (my ($varname, $value) = each %{$service->{vars}}) {
-         my $key = join '_', 'DOTCLOUD', $name, $type, uc($varname);
-         $retval{$key} = $value;
+      while (my ($type, $vars) = each %$service) {
+         $type = uc($type);
+         while (my ($varname, $value) = each %$vars) {
+            my $key = join '_', 'DOTCLOUD', $name, $type, uc($varname);
+            $retval{$key} = $value;
+         }
       }
    } ## end while (my ($name, $service...
    return \%retval;
@@ -133,8 +153,7 @@ sub _merge {
       else {
          my ($service, $type, $varname) =
            $key =~ m{\A (.*) _ ([^_]+) _ ([^_]+) \z}mxs;
-         $data_for{services}{$service}{type} = $type;
-         $data_for{services}{$service}{vars}{$varname} = $value;
+         $data_for{services}{$service}{$type}{$varname} = $value;
       } ## end else [ if ($flag_for{$key})
    } ## end while (my ($name, $value)...
 
@@ -321,21 +340,69 @@ sub service {
    _dclone_return(@found_services);
 } ## end sub service
 
-sub service_vars {
+sub subservice {
+   my $self = shift;
+   my %params = @_ > 1 ? @_
+      : @_ == 0        ? ()
+      : ref($_[0])     ? %{$_[0]}
+      :                  (subservice => $_[0]);
+
+   my ($subservice, $service, $application) = reverse split /\./, $params{subservice};
+   my @applications = defined $application ? $application
+      : exists $params{application} ? $params{application}
+      :                               $self->application_names();
+
+   my @founds;
+   for my $candidate (@applications) {
+      my $services =
+        $self->application($candidate)->{services};    # this croaks
+      my @services_to_test = defined $service ? $service : keys %$services;
+      for my $service (@services_to_test) {
+         next unless exists $services->{$service};
+         next unless exists $services->{$service}{$subservice};
+         push @founds, $services->{$service}{$subservice};
+      }
+   } ## end for my $candidate (@applications)
+
+   croak "cannot find requested subservice '$subservice'"
+     if @founds == 0;
+   croak "ambiguous request for subservice '$subservice', there are many"
+     if @founds > 1;
+
+   _dclone_return(@founds);
+}
+
+sub _subservice_vars {
+   my ($subservice, $list) = @_;
+   return _dclone_return($subservice) unless defined $list;
+   my @values = @{$subservice}{@$list};
+   return @values if wantarray();
+   return \@values;
+}
+
+sub subservice_vars {
    my $self    = shift;
    my %params = @_ > 1 ? @_
       : @_ == 0        ? ()
       : ref($_[0])     ? %{$_[0]}
-      :                  (service => $_[0]);
-   my $service = $self->service(%params);
-   if (exists $params{list}) {
-      my @list   = @{$params{list}};
-      my @values = @{$service->{vars}}{@list};
-      return @values if wantarray;
-      return \@values;
-   } ## end if (exists $params{list...
-   _dclone_return($service->{vars});
+      :                  (subservice => $_[0]);
+   my $subservice = $self->subservice(%params);
+   return _subservice_vars($subservice, $params{list} // undef);
 } ## end sub service_vars
+
+sub service_vars {
+   my $self = shift;
+   my %params = @_ > 1 ? @_
+      : @_ == 0        ? ()
+      : ref($_[0])     ? %{$_[0]}
+      :                  (service => $_[0]);
+   my %service = _dclone_return($self->service(%params));
+   croak "no subservices" if scalar(keys %service) == 0;
+   delete $service{ssh} if scalar(keys %service) > 1;
+   croak "too many subservices" if scalar(keys %service) > 1;
+   my ($subservice) = values %service;
+   return _subservice_vars($subservice, $params{list} // undef);
+}
 
 1;
 __END__
@@ -434,6 +501,50 @@ which DotCloud started using for its own purposes.
 
 =back
 
+=head2 A Note On Available Data
+
+Data about DotCloud services is organized according to the structure of the
+variables set in the relevant files. There are four significant parts:
+
+=over
+
+=item B<< application >>
+
+there can be multiple applications you're loading variables from, and
+DotCloud::Environment lets you distinguish them apart
+
+=item B<< service >>
+
+this is the name of a service in DotCloud sense. For example, if you have
+application whatever like this:
+
+   $ dotcloud list whatever
+   whatever (flavor: legacy):
+     - nosqldb (type: redis; instances: 1)       
+     - sqldb   (type: mysql; instances: 1)       
+     - www     (type: perl; instances: 1)        
+     - backend (type: perl-worker; instances: 1)
+
+you have four services defined: C<nosqldb>, C<sqldb>, C<www> and C<backend>
+
+=item B<< subservice >>
+
+this represents a subgroup of variables in a service. You should always find
+two subservices: one is named C<ssh>, the other one has the same name as the
+service type (e.g. C<redis>, C<mysql>,...).
+
+It makes sense to consider C<ssh> some kind of accessory information and the
+other subservice as the "real" service.
+
+=item B<< variable name >>
+
+this is the name of the variable, which is associated to a subservice.
+
+=back
+
+Values are assigned to variable names.
+
+
 =head2 Suggested/Typical Usage
 
 In order to keep your code clean, you will probably be dividing it
@@ -505,8 +616,9 @@ In the shared module you can do this:
 
    # ... when you need it...
    my $service = dotenv()->service('service-name');
-   my $type = $service->{type}; # e.g. mysql, redis, etc.
-   my $vars = $service->{vars}; # e.g. login, password, host...
+   # ... now you have a hash ref which should have at least two
+   # elements: ssh and the real subservice type, e.g. mysql, redis, ...
+   my $redis_host = $service->{redis}{host};
 
 Most of the time all you need is to access the variables related
 to a specific service, so there's a shortcut for this:
@@ -514,11 +626,19 @@ to a specific service, so there's a shortcut for this:
    use DotCloud::Environment 'dotvars';
    my %vars = dotvars('service-name');
 
+The C<dotvars> shortcut tries its best to DWIM, i.e. it lets you specify
+either the name of a service or the name of a subservice.
+
 For example, suppose that you want to implement a function to
 connect to a Redis service called C<redisdb>:
 
    sub get_redis {
       my %vars = dotvars('redisdb');
+      # it could also be:
+      #
+      # my %vars = dotvars('redis'); # name of service type
+      #
+      # if there is only one service of type redis
 
       require Redis;
       my $redis = Redis->new(server => "$vars{host}:$vars{port}");
@@ -562,14 +682,14 @@ It can be useful if you don't want a global variable in your code, e.g.:
 
 =head2 B<< dotvars >>
 
-   my $vars = dotvars('service-name');
+   my $vars = dotvars('service-name-or-subservice-name');
 
 This function gets the configuration variables for the provided
 service using the default singleton instance. Most of the time this
 is exactly what you want, and nothing more.
 
-This function actually calls L</service_vars> behind the scenes, you can
-pass all the parameters that the method accepts.
+This function actually calls L</service_vars> or L</subservice_vars>
+behind the scenes, you can pass all the parameters that the method accepts.
 
 =head2 B<< find_code_dir >>
 
@@ -821,8 +941,7 @@ with the relevant data of all the applications. Example:
          service_name => 'www',
          services     => {
             nosqldb => {
-               type => 'redis',
-               vars => {
+               redis => {
                   login    => 'redis',
                   password => 'wafadsfsdfdsfdas',
                   host     => 'data.app1.dotcloud.com',
@@ -830,8 +949,7 @@ with the relevant data of all the applications. Example:
                }
             }
             sqldb => {
-               type => 'mysql',
-               vars => {
+               mysql => {
                   login    => 'mysql',
                   password => 'wafadsfsdfdsfdas',
                   host     => 'data.app1.dotcloud.com',
@@ -860,8 +978,7 @@ with the relevant data for the requested application. Example:
       service_name => 'www',
       services     => {
          nosqldb => {
-            type => 'redis',
-            vars => {
+            redis => {
                login    => 'redis',
                password => 'wafadsfsdfdsfdas',
                host     => 'data.app1.dotcloud.com',
@@ -869,8 +986,7 @@ with the relevant data for the requested application. Example:
             }
          }
          sqldb => {
-            type => 'mysql',
-            vars => {
+            mysql => {
                login    => 'mysql',
                password => 'wafadsfsdfdsfdas',
                host     => 'data.app1.dotcloud.com',
@@ -889,8 +1005,12 @@ Get a hash (in list context) or anonymous hash (in scalar context)
 with the relevant data for the requested service. Example:
 
    {
-      type => 'redis',
-      vars => {
+      ssh => {
+         host     => 'data.app1.dotcloud.com',
+         port     => '12345',
+         url      => 'ssh://data.app1.dotcloud.com:12345/',
+      },
+      redis => {
          login    => 'redis',
          password => 'wafadsfsdfdsfdas',
          host     => 'data.app1.dotcloud.com',
@@ -940,24 +1060,31 @@ applications.
 If exactly one service is found it is returned, otherwise this method
 C<croak>s.
 
-=method service_vars
+=method subservice
 
-   my %vars   = $dcenv->service_vars('service-name');
-   my $vars   = $dcenv->service_vars('service-name');
-   my %vars   = $dcenv->service_vars(%params); # also \%params
-   my $vars   = $dcenv->service_vars(%params); # also \%params
-   my @values = $dcenv->service_vars(%params); # also \%params
-   my $values = $dcenv->service_vars(%params); # also \%params
+   my %conf_for = $dcenv->subservice($subservice_name);
+   my %conf_for = $dcenv->subservice(%params); # also with \%params
+   my $conf_for = $dcenv->subservice(%params); # also with \%params
 
-Shorthand to get the configuration variables of a single
-service.
+Get a hash (in list context) or anonymous hash (in scalar context)
+with the relevant data for the requested subservice. Example:
 
-The input parameter list can be a single string with the name of
-the service, or a hash/anonymous hash with parameters.
-Depending on the input, the return value might be structured like
-a hash or like an array:
+   redis => {
+      login    => 'redis',
+      password => 'wafadsfsdfdsfdas',
+      host     => 'data.app1.dotcloud.com',
+      port     => '12345',
+   }
+
+It can be called with a single non-reference scalar that represents
+the subservice to look for. Otherwise it accepts the following parameters
+in a hash or a reference to a hash:
 
 =over
+
+=item B<< subservice >>
+
+the name of the subservice
 
 =item B<< service >>
 
@@ -965,7 +1092,54 @@ the name of the service, see L</service>
 
 =item B<< application >>
 
-the name of the application, see L</service>
+the name of the application, see L</application>
+
+=back
+
+with obvious meanings.
+
+The application and the service name can also be specified in the
+subservice name with separating dots like in the following examples:
+
+   application.service.subservice
+   service.subservice
+
+These configurations in the subservice name override parameters of
+the same name (e.g. specifying C<service.subservice> overrides the
+C<$params{service}> input parameters).
+
+Croaks if more than one subservice with the given name is found.
+
+=method subservice_vars
+
+   my %vars   = $dcenv->subservice_vars('subservice-name');
+   my $vars   = $dcenv->subservice_vars('subservice-name');
+   my %vars   = $dcenv->subservice_vars(%params); # also \%params
+   my $vars   = $dcenv->subservice_vars(%params); # also \%params
+   my @values = $dcenv->subservice_vars(%params); # also \%params
+   my $values = $dcenv->subservice_vars(%params); # also \%params
+
+Shorthand to get the configuration variables of a single
+subservice.
+
+The input parameter list can be a single string with the name of
+the subservice, or a hash/anonymous hash with parameters.
+Depending on the input, the return value might be structured like
+a hash or like an array:
+
+=over
+
+=item B<< subservice >>
+
+the name of the subservice, see L</subservice>
+
+=item B<< service >>
+
+the name of the service, see L</service>
+
+=item B<< application >>
+
+the name of the application, see L</application>
 
 =item B<< list >>
 
@@ -984,3 +1158,36 @@ If this parameter is not present, the whole name/value hash is returned, either
 as a list or as an anonymous hash depending on the context.
 
 =back
+
+=method service_vars
+
+   my %vars   = $dcenv->service_vars('service-name');
+   my $vars   = $dcenv->service_vars('service-name');
+   my %vars   = $dcenv->service_vars(%params); # also \%params
+   my $vars   = $dcenv->service_vars(%params); # also \%params
+   my @values = $dcenv->service_vars(%params); # also \%params
+   my $values = $dcenv->service_vars(%params); # also \%params
+
+Shorthand to get the configuration variables of a single
+service. This assumes that a I<main> subservice can be found
+in the requested service, according to the following algorithm:
+
+=over
+
+=item *
+
+first of all, a service is found with L</service>
+
+=item *
+
+the I<background> service C<ssh> is ignored
+
+=item *
+
+if only one subservice remains in the service, it is assumed to be
+the I<main> subservice.
+
+=back
+
+After this, the method behaves as if L</subservice_vars> with the
+I<main> subservice were called.

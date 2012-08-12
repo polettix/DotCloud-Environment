@@ -20,12 +20,12 @@ my $json = load_json();
    my @connection_details;
    lives_ok {
       my $env = DotCloud::Environment->new(environment_string => $json);
-      @connection_details = $env->service_vars(
-         service => 'sqldb',
+      @connection_details = $env->subservice_vars(
+         subservice => 'mysql',
          list    => [qw< host port login password >],
       );
    } ## end lives_ok
-   "constructor and service_vars live";
+   "constructor and subservice_vars live";
    is_deeply(
       \@connection_details,
       [
@@ -38,9 +38,9 @@ my $json = load_json();
    my %service_vars;
    lives_ok {
       my $env = DotCloud::Environment->new(environment_string => $json);
-      %service_vars = $env->service_vars(service => 'sqldb',);
+      %service_vars = $env->subservice_vars(subservice => 'mysql',);
    }
-   "constructor and service_vars live";
+   "constructor and subservice_vars live";
    is_deeply(
       \%service_vars,
       {
@@ -60,9 +60,9 @@ my $json = load_json();
    my %service_vars;
    lives_ok {
       my $env = DotCloud::Environment->new(environment_string => $json);
-      %service_vars = $env->service_vars('sqldb');
+      %service_vars = $env->subservice_vars('mysql');
    }
-   "constructor and service_vars with service name live";
+   "constructor and subservice_vars with subservice name live";
    is_deeply(
       \%service_vars,
       {
@@ -82,9 +82,9 @@ my $json = load_json();
    my %service_vars;
    lives_ok {
       my $env = DotCloud::Environment->new(environment_string => $json);
-      %service_vars = $env->service_vars('whatever.sqldb');
+      %service_vars = $env->subservice_vars('sqldb.mysql');
    }
-   "constructor and service_vars with application.service name live";
+   "constructor and subservice_vars with service.subservice name live";
    is_deeply(
       \%service_vars,
       {
@@ -102,6 +102,6 @@ my $json = load_json();
 
 {
    throws_ok {
-      DotCloud::Environment->new(environment_string => $json)->service_vars('whatever.boh');
-   } qr/cannot.*find.*service/mxs, 'service not found';
+      DotCloud::Environment->new(environment_string => $json)->subservice_vars('sqldb.whatever');
+   } qr/cannot.*find.*subservice/mxs, 'subservice not found';
 }
