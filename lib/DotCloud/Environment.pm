@@ -28,21 +28,23 @@ my @application_keys = qw< environment project service_id service_name >;
 }
 
 sub dotvars {
-   my (@retval);
+   my @params = @_;
+   my $wantarray = wantarray();
+   my @retval;
    try {
-      if (wantarray()) {
-         @retval = dotenv()->service_vars(@_);
+      if ($wantarray) {
+         @retval = dotenv()->service_vars(@params);
       }
       else {
-         $retval[0] = dotenv()->service_vars(@_);
+         $retval[0] = dotenv()->service_vars(@params);
       }
    }
    catch {
-      if (wantarray()) {
-         @retval = dotenv()->subservice_vars(@_);
+      if ($wantarray) {
+         @retval = dotenv()->subservice_vars(@params);
       }
       else {
-         $retval[0] = dotenv()->subservice_vars(@_);
+         $retval[0] = dotenv()->subservice_vars(@params);
       }
    };
    return @retval;
