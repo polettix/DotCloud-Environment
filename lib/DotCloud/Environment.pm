@@ -47,7 +47,8 @@ sub dotvars {
          $retval[0] = dotenv()->subservice_vars(@params);
       }
    };
-   return @retval;
+   return @retval if wantarray();
+   return $retval[0];
 }
 
 sub find_code_dir {
