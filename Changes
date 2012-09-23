@@ -1,4 +1,8 @@
 {{$NEXT}}
+   - fixed bug that made DotCloud::Environment emit warnings for
+     certain variables in DotCloud
+
+0.9.3     2012-09-23 17:48:37 Europe/Rome
    - fixed bug when returning stuff in scalar context in dotvars
 
 0.9.2     2012-08-12 14:41:26 Europe/Rome
